@@ -1,0 +1,177 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - email: string (required, email format)
+    //   - role: string (required, enum: patient, doctor, admin)
+    //   - specialty: string (optional)
+    //   - bio: string (optional)
+    //   - experience: number (optional)
+    //   - education: string (optional)
+    //   - rating: number (optional)
+    //   - isVerified: boolean (optional)
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: appointments
+    // Document ID: appointmentId (auto-generated)
+    // Fields:
+    //   - patientId: string (required)
+    //   - patientName: string (required)
+    //   - doctorId: string (required)
+    //   - doctorName: string (required)
+    //   - date: string (required, ISO 8601)
+    //   - timeSlot: string (required)
+    //   - status: string (required, enum: pending, confirmed, cancelled, completed)
+    //   - notes: string (optional)
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: reports
+    // Document ID: reportId (auto-generated)
+    // Fields:
+    //   - patientId: string (required)
+    //   - fileName: string (required)
+    //   - fileUrl: string (required)
+    //   - analysis: map (required)
+    //   - summary: map (required)
+    //   - createdAt: string (required, ISO 8601)
+    //
+    // Collection: chats
+    // Document ID: messageId (auto-generated)
+    // Fields:
+    //   - appointmentId: string (required)
+    //   - senderId: string (required)
+    //   - text: string (required)
+    //   - timestamp: string (required, ISO 8601)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          request.auth.token.email == "sehrawatharsh8181@gmail.com");
+    }
+
+    function isDoctor() {
+      return isAuthenticated() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'doctor';
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return hasRequiredFields(['name', 'email', 'role', 'createdAt']) &&
+        data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+        isValidEmail(data.email) &&
+        data.role in ['patient', 'doctor', 'admin'] &&
+        isValidDateString(data.createdAt);
+    }
+
+    function isValidAppointment(data) {
+      return hasRequiredFields(['patientId', 'doctorId', 'date', 'timeSlot', 'status', 'createdAt']) &&
+        data.patientId is string && data.doctorId is string &&
+        data.date is string && isValidDateString(data.date) &&
+        data.timeSlot is string &&
+        data.status in ['pending', 'confirmed', 'cancelled', 'completed'] &&
+        isValidDateString(data.createdAt);
+    }
+
+    function isValidReport(data) {
+      return hasRequiredFields(['patientId', 'fileName', 'fileUrl', 'analysis', 'summary', 'createdAt']) &&
+        data.patientId is string &&
+        data.fileName is string && data.fileName.size() < 255 &&
+        data.fileUrl is string &&
+        data.analysis is map &&
+        data.summary is map &&
+        isValidDateString(data.createdAt);
+    }
+
+    function isValidChatMessage(data) {
+      return hasRequiredFields(['appointmentId', 'senderId', 'text', 'timestamp']) &&
+        data.appointmentId is string &&
+        data.senderId is string &&
+        data.text is string && data.text.size() > 0 && data.text.size() < 5000 &&
+        isValidDateString(data.timestamp);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isAdmin() || (isOwner(userId) && isValidUser(request.resource.data)));
+      allow update: if isAuthenticated() && (isAdmin() || (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role));
+      allow delete: if isAdmin();
+    }
+
+    match /appointments/{appointmentId} {
+      allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == resource.data.patientId || request.auth.uid == resource.data.doctorId);
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.patientId && isValidAppointment(request.resource.data);
+      allow update: if isAuthenticated() && (
+        isAdmin() || 
+        (request.auth.uid == resource.data.patientId && request.resource.data.status == 'cancelled' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])) ||
+        (request.auth.uid == resource.data.doctorId && isValidAppointment(request.resource.data))
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /reports/{reportId} {
+      allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == resource.data.patientId);
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.patientId && isValidReport(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.patientId);
+    }
+
+    match /chats/{messageId} {
+      allow read: if isAuthenticated() && (
+        isAdmin() || 
+        exists(/databases/$(database)/documents/appointments/$(resource.data.appointmentId)) && 
+        (get(/databases/$(database)/documents/appointments/$(resource.data.appointmentId)).data.patientId == request.auth.uid || 
+         get(/databases/$(database)/documents/appointments/$(resource.data.appointmentId)).data.doctorId == request.auth.uid)
+      );
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.senderId && isValidChatMessage(request.resource.data) &&
+                    exists(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)) &&
+                    (get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.patientId == request.auth.uid || 
+                     get(/databases/$(database)/documents/appointments/$(request.resource.data.appointmentId)).data.doctorId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+  }
+}

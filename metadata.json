@@ -1,0 +1,5 @@
+{
+  "name": "MedPredic AI",
+  "description": "An AI-powered healthcare assistant for symptom analysis, medical report summarization, and doctor consultations.",
+  "requestFramePermissions": ["geolocation"]
+}

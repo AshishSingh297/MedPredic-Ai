@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information including roles and professional details for doctors.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["patient", "doctor", "admin"] },
+        "specialty": { "type": "string" },
+        "bio": { "type": "string" },
+        "experience": { "type": "number" },
+        "education": { "type": "string" },
+        "rating": { "type": "number" },
+        "isVerified": { "type": "boolean" },
+        "bp": { "type": "string", "description": "Blood Pressure" },
+        "height": { "type": "number", "description": "Height in cm" },
+        "weight": { "type": "number", "description": "Weight in kg" },
+        "allergies": { "type": "array", "items": { "type": "string" } },
+        "hereditaryDiseases": { "type": "array", "items": { "type": "string" } },
+        "phone": { "type": "string", "description": "Contact phone number" },
+        "bloodType": { "type": "string", "description": "Blood type (e.g., A+, O-)" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "lat": { "type": "number" },
+            "lng": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role", "createdAt"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Medical appointment between a patient and a doctor.",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "timeSlot": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled", "completed"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["patientId", "doctorId", "date", "timeSlot", "status", "createdAt"]
+    },
+    "MedicalReport": {
+      "title": "MedicalReport",
+      "description": "Analyzed medical report for a patient.",
+      "type": "object",
+      "properties": {
+        "patientId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "analysis": { "type": "object" },
+        "summary": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["patientId", "fileName", "analysis", "summary", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Message in a chat between patient and doctor.",
+      "type": "object",
+      "properties": {
+        "appointmentId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appointmentId", "senderId", "text", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles."
+    },
+    "/appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Appointment records."
+    },
+    "/reports/{reportId}": {
+      "schema": "MedicalReport",
+      "description": "Medical reports."
+    },
+    "/chats/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Chat messages."
+    }
+  }
+}
