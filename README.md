@@ -84,7 +84,7 @@ medpredic-ai/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-username/medpredic-ai.git
+git clone https://github.com/AshishSingh297/medpredic-ai.git
 cd medpredic-ai
 ```
 
